@@ -168,6 +168,20 @@ describe('HttpClientAngular', () => {
         });
     });
 
+    it('should handle requests without baseUrl', async () => {
+        const clientWithoutBase = new HttpClientAngular(TestBed.inject(HttpClient));
+        const mockData = { id: 1 };
+
+        const promise = lastValueFrom(clientWithoutBase.get<typeof mockData>('test'));
+
+        const req = httpMock.expectOne('test');  // Should be just 'test' without leading slash
+        expect(req.request.method).toEqual('GET');
+        req.flush(mockData);
+
+        const result = await promise;
+        expect(result).toEqual(mockData);
+    });
+
     describe('Error handling', () => {
         it('should handle HTTP errors', async () => {
             const errorResponse = { message: 'Not Found' };
