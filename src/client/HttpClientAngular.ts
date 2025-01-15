@@ -128,7 +128,7 @@ export class HttpClientAngular implements IHttpClient {
     private buildFullUrl(path: string, filterParams: string): string {
         const cleanBaseUrl = this.baseUrl.replace(/\/$/, '');
         const cleanPath = path.replace(/^\//, '');
-        return `${cleanBaseUrl}/${cleanPath}${filterParams}`;
+        return `${cleanBaseUrl ?? ""}${cleanPath ?? ""}${filterParams ?? ""}`;
     }
 
     private buildMiddleware$(options: HttpClientRequestOptions): Observable<HttpClientRequestOptions> {
