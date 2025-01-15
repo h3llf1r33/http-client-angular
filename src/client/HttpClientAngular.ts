@@ -4,10 +4,11 @@ import {
     HttpClientMiddleware,
     HttpClientRequestOptions,
     HttpMethodType, IGenericFilterQuery,
-    IHttpClient, serializeGenericFilterQuery
-} from "@denis_bruns/foundation";
-import {HttpClient, HttpParams, HttpResponse} from '@angular/common/http'
-import {from, map, Observable, switchMap} from "rxjs";
+    IHttpClient, serializeGenericFilterQuery,
+    IHttpHeaders,
+} from "@denis_bruns/web-core-ts";
+import {HttpClient, HttpHeaders, HttpErrorResponse} from '@angular/common/http'
+import {catchError, from, map, Observable, switchMap} from "rxjs";
 import {createHttpClientMiddlewareFactory} from "@denis_bruns/http-client-middleware";
 
 export class HttpClientAngular implements IHttpClient {
@@ -18,7 +19,19 @@ export class HttpClientAngular implements IHttpClient {
         public readonly baseUrl: string = "",
         private middleware: HttpClientMiddleware<HttpClientRequestOptions>[] = []
     ) {
-        this.httpClient = this._httpClient
+        this.httpClient = this._httpClient;
+    }
+
+    private convertHeaders(headers: IHttpHeaders | undefined): HttpHeaders {
+        if (!headers) return new HttpHeaders();
+        return Object.entries(headers).reduce((httpHeaders, [key, value]) => {
+            if (Array.isArray(value)) {
+                return value.reduce((acc, v) => acc.append(key, v), httpHeaders);
+            } else if (value !== undefined) {
+                return httpHeaders.set(key, value.toString());
+            }
+            return httpHeaders;
+        }, new HttpHeaders());
     }
 
     public request<T, R extends boolean = false>(
@@ -26,7 +39,7 @@ export class HttpClientAngular implements IHttpClient {
         path: string,
         options: {
             config?: HttpClientRequestOptions;
-            body?: Record<string, any>;
+            body?: Record<string, any> | undefined;
             returnFullResponse?: R;
         },
         filterQuery?: IGenericFilterQuery
@@ -36,104 +49,180 @@ export class HttpClientAngular implements IHttpClient {
             headers: {},
             ...options.config || {}
         };
-        initialConfig.baseURL = this.baseUrl;
 
         return this.buildMiddleware$(initialConfig).pipe(
             switchMap(modifiedConfig => {
-                const fullUrl = `${path}${filterParams}`;
+                const fullUrl = this.buildFullUrl(path, filterParams);
                 const httpMethod = method ? String(method).toUpperCase() : 'GET';
+                const angularHeaders = this.convertHeaders(modifiedConfig.headers);
 
-                const request$ = from(this.httpClient.request<T>(httpMethod, fullUrl, {
-                    body: options.body,
-                    headers: modifiedConfig.headers as any,
+                const baseRequestOptions = {
+                    headers: angularHeaders,
                     withCredentials: modifiedConfig.withCredentials || false,
-                    reportProgress: true,
-                    responseType: modifiedConfig.responseType as any,
-                    params: new HttpParams()
-                }));
+                    responseType: 'json' as const,
+                    body: undefined
+                };
 
                 if (options.returnFullResponse) {
-                    return request$;
+                    const requestOptions = {
+                        ...baseRequestOptions,
+                        observe: 'response' as const
+                    };
+
+                    if (options.body !== undefined) {
+                        requestOptions.body = options.body as any;
+                    }
+
+                    return this.httpClient.request<T>(httpMethod, fullUrl, requestOptions).pipe(
+                        map(response => ({
+                            data: response.body,
+                            status: response.status,
+                            statusText: response.statusText || '',
+                            headers: response.headers,
+                            config: {
+                                ...modifiedConfig,
+                                url: fullUrl,
+                                method: httpMethod,
+                                data: options.body,
+                                headers: Object.fromEntries(response.headers.keys().map(key => [
+                                    key,
+                                    response.headers.get(key) || ''
+                                ]))
+                            }
+                        }) as Axios.AxiosXHR<T>),
+                        catchError((error: HttpErrorResponse) => {
+                            return from([{
+                                data: error.error,
+                                status: error.status,
+                                statusText: error.statusText || '',
+                                headers: error.headers,
+                                config: {
+                                    ...modifiedConfig,
+                                    url: fullUrl,
+                                    method: httpMethod,
+                                    data: options.body,
+                                    headers: Object.fromEntries(error.headers.keys().map(key => [
+                                        key,
+                                        error.headers.get(key) || ''
+                                    ]))
+                                }
+                            } as Axios.AxiosXHR<T>]);
+                        })
+                    );
                 }
 
-                return request$.pipe(map((value) => {
-                    return (value as HttpResponse<T>).body ?? value;
-                }));
+                const requestOptions = {
+                    ...baseRequestOptions,
+                    observe: 'body' as const
+                };
+
+                if (options.body !== undefined) {
+                    requestOptions.body = options.body as any;
+                }
+
+                return this.httpClient.request<T>(httpMethod, fullUrl, requestOptions);
             })
         ) as Observable<R extends true ? Axios.AxiosXHR<T> : T>;
     }
 
+    private buildFullUrl(path: string, filterParams: string): string {
+        const cleanBaseUrl = this.baseUrl.replace(/\/$/, '');
+        const cleanPath = path.replace(/^\//, '');
+        return `${cleanBaseUrl}/${cleanPath}${filterParams}`;
+    }
+
+    private buildMiddleware$(options: HttpClientRequestOptions): Observable<HttpClientRequestOptions> {
+        const middlewares$ = this.middleware.map(fn => fn(options));
+        return createHttpClientMiddlewareFactory(middlewares$, options) as Observable<HttpClientRequestOptions>;
+    }
+
     get<T>(path: string, config?: HttpClientRequestOptions, filterQuery?: IGenericFilterQuery): Observable<T> {
-        return this.request<T>('GET', path, {config}, filterQuery);
+        return this.request<T>('GET', path, { config }, filterQuery);
     }
 
     post<T, D extends Record<string, any>>(path: string, body?: D, config?: HttpClientRequestOptions): Observable<T> {
-        return this.request<T>('POST', path, {body, config});
+        if (body === undefined) {
+            return this.request<T>('POST', path, { config });
+        }
+        return this.request<T>('POST', path, { body, config });
     }
 
     put<T, D extends Record<string, any>>(path: string, body?: D, config?: HttpClientRequestOptions): Observable<T> {
-        return this.request<T>('PUT', path, {body, config});
+        if (body === undefined) {
+            return this.request<T>('PUT', path, { config });
+        }
+        return this.request<T>('PUT', path, { body, config });
     }
 
     patch<T, D extends Record<string, any>>(path: string, body?: D, config?: HttpClientRequestOptions): Observable<T> {
-        return this.request<T>('PATCH', path, {body, config});
+        if (body === undefined) {
+            return this.request<T>('PATCH', path, { config });
+        }
+        return this.request<T>('PATCH', path, { body, config });
     }
 
     delete<T>(path: string, config?: HttpClientRequestOptions, filterQuery?: IGenericFilterQuery): Observable<T> {
-        return this.request<T>('DELETE', path, {config}, filterQuery);
+        return this.request<T>('DELETE', path, { config }, filterQuery);
     }
 
     getRequest<T>(path: string, config?: HttpClientRequestOptions, filterQuery?: IGenericFilterQuery): Observable<Axios.AxiosXHR<T>> {
         return this.request<T, true>('GET', path, {
             config,
             returnFullResponse: true,
-        }, filterQuery)
+        }, filterQuery);
     }
 
     postRequest<T>(path: string, body?: Record<string, any>, config?: HttpClientRequestOptions): Observable<Axios.AxiosXHR<T>> {
+        if (body === undefined) {
+            return this.request<T, true>('POST', path, {
+                config,
+                returnFullResponse: true,
+            });
+        }
         return this.request<T, true>('POST', path, {
             body,
             config,
             returnFullResponse: true,
-        })
+        });
     }
 
     putRequest<T>(path: string, body?: Record<string, any>, config?: HttpClientRequestOptions): Observable<Axios.AxiosXHR<T>> {
+        if (body === undefined) {
+            return this.request<T, true>('PUT', path, {
+                config,
+                returnFullResponse: true,
+            });
+        }
         return this.request<T, true>('PUT', path, {
             body,
             config,
             returnFullResponse: true,
-        })
+        });
     }
 
     patchRequest<T>(path: string, body?: Record<string, any>, config?: HttpClientRequestOptions): Observable<Axios.AxiosXHR<T>> {
+        if (body === undefined) {
+            return this.request<T, true>('PATCH', path, {
+                config,
+                returnFullResponse: true,
+            });
+        }
         return this.request<T, true>('PATCH', path, {
             body,
             config,
             returnFullResponse: true,
-        })
+        });
     }
 
     deleteRequest<T>(path: string, config?: HttpClientRequestOptions): Observable<Axios.AxiosXHR<T>> {
         return this.request<T, true>('DELETE', path, {
             config,
             returnFullResponse: true,
-        })
+        });
     }
 
-    /**
-     * Utility method to parse a URL and extract IGenericFilterQuery.
-     * This can be used outside the HttpClient if needed.
-     * @param url The full URL string.
-     * @returns The deserialized generic filter query.
-     */
     parseUrlToGenericFilterQuery(url: string): IGenericFilterQuery {
         const urlObj = new URL(url, this.baseUrl);
         return deserializeGenericFilterQuery(urlObj.search);
-    }
-
-    private buildMiddleware$(options: HttpClientRequestOptions): Observable<HttpClientRequestOptions> {
-        const middlewares$ = this.middleware.map(fn => fn(options));
-        return createHttpClientMiddlewareFactory(middlewares$, options) as Observable<HttpClientRequestOptions>;
     }
 }

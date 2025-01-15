@@ -1,6 +1,6 @@
 {
   "name": "@denis_bruns/http-client-angular",
-  "version": "0.2.0",
+  "version": "1.0.2",
   "main": "./dist/index.js",
   "types": "./dist/types/index.d.ts",
   "exports": {
@@ -39,13 +39,22 @@
   "author": "denis_bruns@protonmail.com",
   "license": "MIT",
   "dependencies": {
-    "@angular/common": "^19.0.6",
-    "@angular/compiler": "^19.0.6",
-    "@denis_bruns/foundation": "^0.8.0",
-    "@denis_bruns/http-client-middleware": "^0.4.0",
+    "@denis_bruns/web-core-ts": "^1.0.0",
+    "@denis_bruns/http-client-middleware": "^1.0.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@types/axios": "^0.9.36"
+    "@angular/common": "^19.0.6",
+    "@angular/compiler": "^19.0.6",
+    "@angular/compiler-cli": "^19.0.6",
+    "@angular/core": "^19.0.6",
+    "@jest/globals": "^29.7.0",
+    "@types/axios": "^0.9.36",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-preset-angular": "^14.5.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2"
   }
 }
