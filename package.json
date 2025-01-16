@@ -1,6 +1,6 @@
 {
   "name": "@denis_bruns/http-client-angular",
-  "version": "1.0.6",
+  "version": "2.0.0",
   "main": "./dist/index.js",
   "types": "./dist/types/index.d.ts",
   "exports": {
@@ -40,7 +40,7 @@
   "license": "MIT",
   "dependencies": {
     "@denis_bruns/web-core-ts": "^1.0.0",
-    "@denis_bruns/http-client-middleware": "^1.0.2",
+    "@denis_bruns/http-client-middleware": "^2.0.0",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {

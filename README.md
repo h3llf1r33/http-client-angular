@@ -159,7 +159,8 @@ combinedMiddleware$.subscribe(config => {
   *Provides core interfaces and types for HTTP client configuration and clean architecture.*
 
 - **@denis_bruns/http-client-middleware**  
-  [![NPM](https://img.shields.io/npm/v/@denis_bruns/http-client-middleware?style=flat-square&logo=npm)](https://www.npmjs.com/package/@denis_bruns/http-client-middleware)  
+  [![NPM](https://img.shields.io/npm/v/@denis_bruns/http-client-middleware?style=flat-square&logo=npm)](https://www.npmjs.com/package/@denis_bruns/http-client-middleware)
+- [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github)](https://github.com/h3llf1r33/http-client-middleware)
   *A middleware framework that integrates with this client to modify HTTP request options.*
 
 ---
